@@ -5,53 +5,82 @@ use v5.10;
 use autodie;
 use Getopt::Long;
 
-die "$0 -l <kegg links directory> -r <refseq dir> -o <output file>\n" unless $#ARGV == 2; 
+die "$0 -l <kegg links directory> -r <refseq dir> -o <output file> -x <gi2taxid_input> -t <gi2taxid.refseq>\n" unless $#ARGV == 9; 
 
-my ($links_dir, $refseq_dir, $outputfile);
+my ($links_dir, $refseq_dir, $outputfile, $gi2taxid_vanilla, $gi2taxid_refseq);
 my (%genesko, %genesncbi, %ncbirefseq);
 GetOptions( 
             'l|links=s'       	=> \$links_dir,
             'r|refseq=s'	=> \$refseq_dir,
             'o|output=s' 	=> \$outputfile,
+            'x|taxoninput=s'	=> \$gi2taxid_vanilla,
+            't|taxoutput=s'	=> \$gi2taxid_refseq
            );
 
+#Step 1: gi <-> refseq
+    giRefseq($_) foreach <$refseq_dir/*>;	#note this only includes Refseq sequences from Bacteria & Archea; 
+    say "Finished reading refseq files";
+#Step 2: ko <-> gi
+    parseGeneGI("$links_dir".'/genes_ncbi-gi.list.gz');
 
-#gi <-> refseq
-my @refseq = <$refseq_dir/*>;
-foreach (@refseq) { 
-    say "Reading ".$_;
-open my $refseq, "-|", "zcat $_"; 
-    while(<$refseq>){ 
-    	my ($gi, $ref) = (split(/\|/, $_))[1,3] if (m/^\>/); 
-    	$ncbirefseq{$gi} = $ref;
-	    }	
-	  say "\t".scalar keys %ncbirefseq;
-	    }
-say "Finished reading refseq files";
-
-#ko <-> genes
-open my $genesncbi, "-|","zcat $links_dir/genes_ko.list.gz";
-while(<$genesncbi>) { 
-	chomp;
-	my ($gene, $ncbi)  = split(/\t/);
-	$gene =~ s/ncbi-gene://;
-	$genesncbi{$gene}= $ncbi;
-}
-say "Finished storing gene2ko";
-
-#generate refseq KO mapping
-open my $genesko, "-|","zcat $links_dir/genes_ko.list.gz";
-open my $output, $outputfile;
-while(<$genesko>) { 
-	chomp;
-	my ($gene,$ko) = split(/\t/);
-	$ko =~ s/ko\:K//;
-	my $ref = $ncbirefseq{$genesncbi{$gene}};
-	say $output join "\t", $ref, $ko; 
-}
+#Step 3: gi<->taxid (only refseq sequences)
+    giTaxon($gi2taxid_vanilla, $gi2taxid_refseq);
+#Step 4: KO <-> refseq
+    linkRefseq2KO("$links_dir/genes_ko.list.gz", $outputfile);
 say "DONE";
-__END__
 
+sub linkRefseq2KO { 
+	my ($file, $outputfile)  = @_;
+	open my $input, "-|","zcat $file";
+	open my $output, ">", $outputfile;
+    	while(<$input>) { 
+	    chomp;
+	    my ($kegggene,$ko) = split(/\t/);
+	    $ko =~ s/ko\:K//;
+	    if (exists $ncbirefseq{$genesncbi{$kegggene}}) {
+	    	say $output join "\t", $ncbirefseq{$genesncbi{$kegggene}}, $ko
+	    }else{ 
+	    	say "This ".$kegggene." is not associated with a refseq gene (KO is mapped to GI:".$genesncbi{$kegggene}.")"
+	    	} 
+    	}
+}
+
+sub parseGeneGI { 
+    my ($file)  = @_;
+    open my $input, "-|","zcat $file";
+    while(<$input>) { 
+	    chomp;
+	    my ($kegggene, $gi)  = split(/\t/);
+	    $gi =~ s/ncbi-gi://;
+	    $genesncbi{$kegggene}= $gi;
+    }
+    say "Finished storing genes-gi";
+}
+
+sub giRefseq { 
+my ($inputFile) = @_;
+say "Reading ".$inputFile;
+open my $input , "-|", "zcat $inputFile"; 
+    while(<$input>){ 
+    	if (m/^\>/){
+    	my ($gi, $ref) = (split(/\|/, $_))[1,3];
+    	$ncbirefseq{$gi} = $ref;
+	}	
+    }
+}
+
+sub giTaxon { 
+    my ($file, $outputfile) = @_;
+    open my $input, '<', $file;
+    open my $output, '>', $outputfile;
+    while(<$input>) { 
+	chomp;
+	my ($gi, $taxID) = split /\t/; 
+	say $output join "\t", 'gi|'.$gi, $taxID if exists $ncbirefseq{$gi}; 
+    }
+}
+
+__END__
 genes_ncbi-geneid.list.gz
 hsa:1   ncbi-geneid:1
 hsa:10  ncbi-geneid:10
@@ -67,3 +96,15 @@ hsa:10007       ko:K02564
 hsa:10008       ko:K04897
 hsa:10009       ko:K10507
 hsa:1001        ko:K06796
+
+final output
+YP_114235       08684
+YP_115248       08684
+YP_114234       08684
+YP_115247       08684
+YP_114236       08684
+YP_115249       08684
+YP_001940163    08684
+YP_001940162    08684
+YP_001940158    08684
+YP_004511252    08684
