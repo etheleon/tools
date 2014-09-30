@@ -5,24 +5,25 @@ use v5.10;
 use autodie;
 use Getopt::Long;
 
-die "$0 -l <kegg links directory> -r <refseq dir> -o <output file> -x <gi2taxid_input> -t <gi2taxid.refseq>\n" unless $#ARGV == 9; 
+die "$0 -l <kegg links directory> -o <output file> -x <gi2taxid_input> -t <gi2taxid.refseq>\n" unless $#ARGV == 7; 
 
-my ($links_dir, $refseq_dir, $outputfile, $gi2taxid_vanilla, $gi2taxid_refseq);
+my ($links_dir, $outputfile, $gi2taxid_vanilla, $gi2taxid_refseq);
 my (%genesko, %genesncbi, %ncbirefseq);
 GetOptions( 
             'l|links=s'       	=> \$links_dir,
-            'r|refseq=s'	=> \$refseq_dir,
             'o|output=s' 	=> \$outputfile,
             'x|taxoninput=s'	=> \$gi2taxid_vanilla,
             't|taxoutput=s'	=> \$gi2taxid_refseq
            );
 
-#Step 1: gi <-> refseq
-    giRefseq($_) foreach <$refseq_dir/*>;	#note this only includes Refseq sequences from Bacteria & Archea; 
+#Step 1: gi <-> refseq	#meant for nr 
+my $filesInDir = `ls ~/db/nr/*`; 
+my @files = map { if ($_ =~ /\d$/){$_}else{()} }  (split /\n/, $filesInDir); 
+
+    giRefseq($_) foreach @files;	#note this only includes Refseq sequences from Bacteria & Archea; 
     say "Finished reading refseq files";
 #Step 2: ko <-> gi
     parseGeneGI("$links_dir".'/genes_ncbi-gi.list.gz');
-
 #Step 3: gi<->taxid (only refseq sequences)
     giTaxon($gi2taxid_vanilla, $gi2taxid_refseq);
 #Step 4: KO <-> refseq
@@ -60,11 +61,15 @@ sub parseGeneGI {
 sub giRefseq { 
 my ($inputFile) = @_;
 say "Reading ".$inputFile;
-open my $input , "-|", "zcat $inputFile"; 
+open my $input , "<", "$inputFile"; 
     while(<$input>){ 
     	if (m/^\>/){
-    	my ($gi, $ref) = (split(/\|/, $_))[1,3];
+		my @sequences = split /gi\|/; 
+		foreach (@sequences) { 
+    	my ($gi, $ref) = (split(/\|/, $_))[0,2];
+#    	say join "\t", $gi, $ref;
     	$ncbirefseq{$gi} = $ref;
+		}
 	}	
     }
 }
