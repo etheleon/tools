@@ -16,34 +16,61 @@ GetOptions(
             't|taxoutput=s'	=> \$gi2taxid_refseq
            );
 
-#Step 1: gi <-> refseq	#meant for nr 
-my $filesInDir = `ls ~/db/nr/*`; 
-my @files = map { if ($_ =~ /\d$/){$_}else{()} }  (split /\n/, $filesInDir); 
+#Unmapped
+open my $unmapped, '>', 'unmapped';
 
-    giRefseq($_) foreach @files;	#note this only includes Refseq sequences from Bacteria & Archea; 
-    say "Finished reading refseq files";
-#Step 2: ko <-> gi
+#Mapping of WP -> GI
+open my $errorlog, '>', 'errorlog';
+say $errorlog "gi\tNRrefseq";
+
+#gi <- refseq (NR) gi <- NP <- WP 
+    my @nr = map { if ($_ =~ /\d$/){$_}else{()} }  (split /\n/, `ls ~/db/nr/*`); 
+    giRefseq_NR($_) foreach @nr;	#note this only includes Refseq sequences from Bacteria & Archea; 
+#gi <- refseq (NP) 
+    giRefseq_prot($_) foreach split(/\n/, `ls /export2/home/uesu/db/refseq/arch_prot/* | grep -v nonredundant`); 
+    #note this only includes only Refseq sequences from Bacteria & Archea folder; 
+#ko <-> gi
     parseGeneGI("$links_dir".'/genes_ncbi-gi.list.gz');
-#Step 3: gi<->taxid (only refseq sequences)
+#gi<->taxid (only refseq sequences)
     giTaxon($gi2taxid_vanilla, $gi2taxid_refseq);
-#Step 4: KO <-> refseq
+#KO <-> refseq
     linkRefseq2KO("$links_dir/genes_ko.list.gz", $outputfile);
-say "DONE";
 
-sub linkRefseq2KO { 
-	my ($file, $outputfile)  = @_;
-	open my $input, "-|","zcat $file";
-	open my $output, ">", $outputfile;
-    	while(<$input>) { 
-	    chomp;
-	    my ($kegggene,$ko) = split(/\t/);
-	    $ko =~ s/ko\:K//;
-	    if (exists $ncbirefseq{$genesncbi{$kegggene}}) {
-	    	say $output join "\t", $ncbirefseq{$genesncbi{$kegggene}}, $ko
-	    }else{ 
-	    	say "This ".$kegggene." is not associated with a refseq gene (KO is mapped to GI:".$genesncbi{$kegggene}.")"
-	    	} 
+####################################################################################################
+sub giRefseq_NR { 
+my ($inputFile) = @_;
+say "Reading ".$inputFile;
+open my $input , "<", "$inputFile"; 
+    while(<$input>){ 
+    	if (m/^\>/){
+		my @sequences = split /gi\|/; 
+		shift @sequences;	#removes the >
+		#process headnode
+    		my ($headgi, $wpref) = (split(/\|/, shift @sequences))[0,2];
+    		$ncbirefseq{$headgi} = $wpref;
+    		say $errorlog join "\t", $headgi, $wpref;
+
+		#childnodes		
+		foreach (@sequences) 
+			{ 
+    		my ($gi, $refstatus, $ref) = (split(/\|/, $_))[0,1,2];
+    		$ncbirefseq{$gi} = $wpref if ($refstatus eq 'ref');	#only refseq matches
+    		say $errorlog join "\t", $gi, $wpref;			#mapping
+		    	}
+	    	    }	
+    }
+}
+
+sub giRefseq_prot { 
+my ($inputFile) = @_;
+say "Reading ".$inputFile;
+open my $input , "<", "$inputFile"; 
+    while(<$input>){ 
+    	if (m/^\>/){
+	my ($gi, $ref) = (split /\|/)[1,3];
+	$ncbirefseq{$gi} = $ref if (!exists $ncbirefseq{$gi})
     	}
+    }
 }
 
 sub parseGeneGI { 
@@ -58,22 +85,6 @@ sub parseGeneGI {
     say "Finished storing genes-gi";
 }
 
-sub giRefseq { 
-my ($inputFile) = @_;
-say "Reading ".$inputFile;
-open my $input , "<", "$inputFile"; 
-    while(<$input>){ 
-    	if (m/^\>/){
-		my @sequences = split /gi\|/; 
-		foreach (@sequences) { 
-    	my ($gi, $ref) = (split(/\|/, $_))[0,2];
-#    	say join "\t", $gi, $ref;
-    	$ncbirefseq{$gi} = $ref;
-		}
-	}	
-    }
-}
-
 sub giTaxon { 
     my ($file, $outputfile) = @_;
     open my $input, '<', $file;
@@ -81,8 +92,29 @@ sub giTaxon {
     while(<$input>) { 
 	chomp;
 	my ($gi, $taxID) = split /\t/; 
-	say $output join "\t", 'gi|'.$gi, $taxID if exists $ncbirefseq{$gi}; 
+	say $output join "\t", 'gi|'.$gi, $taxID if exists $ncbirefseq{$gi}; 	
     }
+}
+
+sub linkRefseq2KO { 
+	my ($file, $outputfile)  = @_;
+	open my $input, "-|","zcat $file";
+	open my $output, ">", $outputfile;
+    	while(<$input>) { 
+	    chomp;
+	    my ($kegggene,$ko) = split /\t/;
+	    $ko =~ s/ko\:K//;
+	    if (exists $genesncbi{$kegggene} && exists $ncbirefseq{$genesncbi{$kegggene}}) {
+		#refseqID		ko	GI
+	    	say $output join "\t", $ncbirefseq{$genesncbi{$kegggene}}, $ko, $genesncbi{$kegggene}, $kegggene;		#means that ko-(gene:gene no mapping to gi) but how can u 
+	    }else{ 
+	    	if(exists $genesncbi{$kegggene}){
+	    	say $unmapped "This ".$kegggene." is not associated with a refseq gene (KO:".$ko." is mapped to GI:".$genesncbi{$kegggene}."ie. gi is not mapped to a refseqID)"
+	    	}else{
+		say $unmapped "This ".$kegggene." was not recorded with a gi ";	#all genes were mapped to a gi
+	    	}
+	    	} 
+    	}
 }
 
 __END__
