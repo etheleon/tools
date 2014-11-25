@@ -9,37 +9,18 @@ use Parallel::ForkManager;
 
 die "USAGE: $0 <number of forks to use>\n" unless $#ARGV == 0;
 
-my $process_count = shift;
-my $pm = new Parallel::ForkManager($process_count);
-
 my $refseqDB                              = '/export2/home/uesu/db/refseq/arch_prot';
 my $keggDIR                               = '/export2/home/uesu/KEGG/KEGG_SEPT_2014';
 my $dir                                   = '/export2/home/uesu/db/refseq/ko';
-my %out;        #store the KO filehandles
 my %ncbi2ko;    #ncbi <-> ko hash table
 my %kohash;
-##################################################
-#-------------------------------------------------
-#AIM:
-#Build reference DB for each KO
-##################################################
 
-#Build KO<->GI hash table
-say "Initialising..";
+my $process_count = shift;
+my $pm = new Parallel::ForkManager($process_count);
+
+
 ko2gi();
-say "Loaded NCBI->KO hashtable\n\t# of keys:",scalar keys %ncbi2ko;
-
-#Main
 main($pm);
-
-#Combine Outputs
-#mkdir "$dir/kocombined" unless -d "$dir/kocombined";
-#foreach my $koID(keys %kohash)
-#{
-#$koID =~ s/ko://g;
-#system("cat $dir/*protein*/$koID > $dir/kocombined/$koID");
-#}
-##find * -size 0 -exec rm -f {} +
 
 sub main
 {
@@ -49,16 +30,18 @@ sub main
 
     foreach (@newfiles)
     {
+
         $pm->start and next;
         ##################################################
         #-------------------------------------------------
         #parallelized Code
         m/\/
             (?<ncbiFile>[^\/]+)  #the filename without .gz
-        \.faa\.gz$
-        /x;
+        \.faa\.gz$/x;
+
         my $outputDIR = "$dir/".$+{ncbiFile};
         mkdir $outputDIR unless -d $outputDIR;
+
         readGZ($_, $outputDIR);
         ##################################################
         $pm->finish;
@@ -69,15 +52,16 @@ sub main
 sub readGZ
 {
     my ($gzfna, $outputDIR) = @_;
+    my %out;        #store the KO filehandles
     open my $in, "-|", "zcat $gzfna";
     my $contents = do { local $/; <$in> };
     my @seq = split /\>/, $contents;
     foreach my $sequence (@seq)
     {
         $sequence =~ m/^gi\|(?<ncbi>\d+)\|/;
-        #say $+{ncbi};
+
         my $ko = $ncbi2ko{$+{ncbi}};
-        if (exists $ncbi2ko{$+{ncbi}})   #if the gi is linked to a KO;
+        if ($ko)   #if the gi is linked to a KO;
         {
             unless($out{$ko})
             {
@@ -91,6 +75,7 @@ sub readGZ
 
 sub ko2gi
 {
+say "Initialising..";
     open my $input, '<', "$keggDIR/genes/links/genes_ko.list";
     my %gene2ncbi;
     my %gene2ko;
@@ -116,8 +101,6 @@ sub ko2gi
     close $input2;
 
 ##################################################
-#-------------------------------------------------
-#Check
     open my $output, ">", "/export2/home/uesu/qc.txt";
 ##################################################
     foreach my $gene (keys %gene2ncbi)
@@ -128,9 +111,12 @@ sub ko2gi
         if($ko ne "")
         {
             $ncbi2ko{$ncbi} = $ko;
+            ##################################################
             say $output join "\t", $ncbi, $ko;
+            ##################################################
         }
     }
+say "Loaded NCBI->KO hashtable\n\t# of keys:", scalar keys %ncbi2ko;
 }
 
 __END__
@@ -146,3 +132,12 @@ __END__
 
 #When i glob
 /export2/home/uesu/db/refseq/arch_prot/bacteria.99.protein.faa.gz
+
+
+#Combine Outputs
+#mkdir "/export2/home/uesu/db/refseq/kocombined" unless -d "/export2/home/uesu/db/refseq/kocombined";
+#foreach my $koID (keys %kohash)
+#{
+#system("cat $dir/*/$koID > /export2/home/uesu/db/refseq/kocombined/$koID");
+#}
+#find * -size 0 -exec rm -f {} +
