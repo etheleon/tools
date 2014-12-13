@@ -25,8 +25,7 @@ main($pm);
 sub main
 {
     my $pm = shift;
-    my @files = glob "$refseqDB/*";
-    my @newfiles  = grep {!m/nonredundant/} @files; #not counting redundant
+    my @newfiles  = grep {!m/nonredundant/} <$refseqDB/*>;
 
     foreach (@newfiles)
     {
@@ -36,12 +35,11 @@ sub main
         #-------------------------------------------------
         #parallelized Code
         m/\/
-            (?<ncbiFile>[^\/]+)  #the filename without .gz
-        \.faa\.gz$/x;
+            (?<ncbiFile>[^\/]+)     #the filename without .gz
+            \.faa\.gz$              #the file extensions
+        /x;
 
         my $outputDIR = "$dir/".$+{ncbiFile};
-        mkdir $outputDIR unless -d $outputDIR;
-
         readGZ($_, $outputDIR);
         ##################################################
         $pm->finish;
@@ -52,7 +50,9 @@ sub main
 sub readGZ
 {
     my ($gzfna, $outputDIR) = @_;
-    my %out;        #store the KO filehandles
+    my %out;        #hash table to store the lexical KO filehandles
+    mkdir $outputDIR unless -d $outputDIR;
+
     open my $in, "-|", "zcat $gzfna";
     my $contents = do { local $/; <$in> };
     my @seq = split /\>/, $contents;
@@ -67,8 +67,7 @@ sub readGZ
             {
                $out{$ko} = IO::File->new(">$outputDIR/$ko");
             }
-            $out{$ko}->print('>');
-            $out{$ko}->print($sequence);
+            $out{$ko}->print(">$sequence");
         }
     }
 }
@@ -100,9 +99,6 @@ say "Initialising..";
     }
     close $input2;
 
-##################################################
-    open my $output, ">", "/export2/home/uesu/qc.txt";
-##################################################
     foreach my $gene (keys %gene2ncbi)
     {
     my $ko = $gene2ko{$gene};
@@ -111,9 +107,6 @@ say "Initialising..";
         if($ko ne "")
         {
             $ncbi2ko{$ncbi} = $ko;
-            ##################################################
-            say $output join "\t", $ncbi, $ko;
-            ##################################################
         }
     }
 say "Loaded NCBI->KO hashtable\n\t# of keys:", scalar keys %ncbi2ko;
@@ -141,3 +134,5 @@ __END__
 #system("cat $dir/*/$koID > /export2/home/uesu/db/refseq/kocombined/$koID");
 #}
 #find * -size 0 -exec rm -f {} +
+#
+#perl -nE 'say $1 if m/\t(\S+)$/' ~/KEGG/KEGG_SEPT_2014/genes/links/genes_ko.list | sort | uniq | wc -l
