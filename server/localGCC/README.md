@@ -16,7 +16,7 @@ Remember to edit .bash_profile to include the LD library path and the execution 
 ```bash
 #Shared 
 export PATH=$HOME/local/gcc49Shared/bin:$PATH:$HOME/local/bin:
-LD_RUN_PATH=$HOME/local/gcc49Shared
-LD_LIBRARY_PATH=$HOME/local/gcc49Shared/lib64
+export LD_RUN_PATH=$HOME/local/gcc49Shared
+export LD_LIBRARY_PATH=$HOME/local/gcc49Shared/lib64
 ```
 
