@@ -5,18 +5,24 @@ use v5.18;
 use autodie;
 # capture the output of system command
 
-die "$0 <processname> <uniqueIdentifier> insufficient arguments" unless $#ARGV == 0;
+die "$0 <processname> <uniqueIdentifier> <anti> insufficient arguments" unless $#ARGV == 2;
+my ($processname, $uniq, $anti) = @ARGV;
 
-my $cmd = 'ps -aef | grep -v "grep"| grep -v "perl" | grep '.$ARGV[0];
-my $ps  = `$cmd`; 
+my $cmd = qq(ps axww -o cmd,size | grep -v "grep"| grep -v "perl");
+if($anti)
+{
+    $cmd .= qq(grep -v $uniq | grep $processname);
+}else{
+    $cmd .=  qq(grep $uniq | grep $processname);
+}
+
+my $ps  = `$cmd`;
 chomp($ps);
-#say $ps;
-#say 'true' if $ps ne '';
-while($ps ne '') { 
-    	# get the line about tomcat process
-            my @vals = split /\s+/, $ps;
-            my $mem_used_percent = $vals[3];
-            say "$mem_used_percent";
-	    sleep 60;
-my $ps  = `$cmd`; 
-    }
+say '#'.$ps;
+while($ps ne '')
+{
+    $ps =~ m/\s(?<memusage>\d+)$/;  #in kilobytes
+    say eval{ $+{memusage} / 1000000 },"G";
+    sleep 60;
+    my $ps  = `$cmd`;
+}
