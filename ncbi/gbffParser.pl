@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 
-use strict;
-use v5.18;
+use Modern::Perl;
 
 die "$0 <somefile.gbff.gz> <outputFile>\n" unless $#ARGV == 1;
 my ($gb_file, $outputfile) = @ARGV;
