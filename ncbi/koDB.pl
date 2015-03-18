@@ -11,29 +11,40 @@ die "USAGE: $0 <number of forks to use>\n" unless $#ARGV == 0;
 
 my $refseqDB                              = '/export2/home/uesu/db/refseq/arch_prot';
 my $keggDIR                               = '/export2/home/uesu/KEGG/KEGG_SEPT_2014';
-my $dir                                   = '/export2/home/uesu/db/refseq/ko';
+my $dir                                   = '/export2/home/uesu/db/refseq/ko2'; #stores the uncombined sequences
+my $kodb                                  = '/export2/home/uesu/db/kodb2';      #redundant but combined
+my $nr                                    = '/export2/home/uesu/db/konr';       #non-redudnant partitioned by ko
 my %ncbi2ko;    #ncbi <-> ko hash table
-my %kohash;
 
-my $process_count = shift;
-my $pm = new Parallel::ForkManager($process_count);
+my $threads= shift;
+my $pm = new Parallel::ForkManager($threads);
+open my $batch, ">", "./batch/kodb";
 
-
-ko2gi();
-main($pm);
+#say "# building gi-ko link";
+    #ko2gi();
+#say "# output to files";
+    #main($pm);
+#say "# main is done";
+    my @kos = map {chomp; $_ } `find $dir -type f -maxdepth 2 -printf "%f\n" | sort | uniq`;
+#say "# merging kos";
+    #mergekos($_) for @kos;
+say "# removing Redundant";
+for (@kos)
+{
+    $pm->start and next;
+    removeRedundant($_);
+    $pm->finish;
+}
+$pm->wait_all_children;
 
 sub main
 {
     my $pm = shift;
     my @newfiles  = grep {!m/nonredundant/} <$refseqDB/*>;
-
     foreach (@newfiles)
     {
-
         $pm->start and next;
         ##################################################
-        #-------------------------------------------------
-        #parallelized Code
         m/\/
             (?<ncbiFile>[^\/]+)     #the filename without .gz
             \.faa\.gz$              #the file extensions
@@ -56,16 +67,15 @@ sub readGZ
     open my $in, "-|", "zcat $gzfna";
     my $contents = do { local $/; <$in> };
     my @seq = split /\>/, $contents;
-    foreach my $sequence (@seq)
+    for my $sequence (@seq)
     {
         $sequence =~ m/^gi\|(?<ncbi>\d+)\|/;
-
-        my $ko = $ncbi2ko{$+{ncbi}};
-        if ($ko)   #if the gi is linked to a KO;
+        if(exists $ncbi2ko{$+{ncbi}})
         {
+            my $ko = $ncbi2ko{$+{ncbi}};
             unless($out{$ko})
             {
-               $out{$ko} = IO::File->new(">$outputDIR/$ko");
+                $out{$ko} = IO::File->new(">$outputDIR/$ko");
             }
             $out{$ko}->print(">$sequence");
         }
@@ -76,63 +86,63 @@ sub ko2gi
 {
 say "Initialising..";
     open my $input, '<', "$keggDIR/genes/links/genes_ko.list";
-    my %gene2ncbi;
-    my %gene2ko;
+    my %gene;
 
     while(<$input>)
     {
         chomp;
         #hsa:100131801   ko:K18186
         my @a = split /\t/;
-        $gene2ko{$a[0]} = $a[1];
+        $gene{$a[0]}->{ko} = $a[1];
     }
     close $input;
 
-    open my $input2, '<', "$keggDIR/genes/links/genes_ncbi-gi.list";
+    open my $input2, '<', "$keggDIR/genes/links/genes_ncbi-geneid.list";
     while(<$input2>)
     {
         chomp;
         #hsa:100125288   ncbi-gi:157266269
         my @a = split /\t/;
         $a[1] =~ s/^ncbi-gi\://;
-        $gene2ncbi{$a[0]} = $a[1];
+        $gene{$a[0]}->{gi} = $a[1];
     }
     close $input2;
 
-    foreach my $gene (keys %gene2ncbi)
+    for my $gene (keys %gene)
     {
-    my $ko = $gene2ko{$gene};
-    $kohash{$ko}++;
-    my $ncbi = $gene2ncbi{$gene};
-        if($ko ne "")
+        if(exists $gene{$gene}->{gi} && exists $gene{$gene}->{ko})
         {
-            $ncbi2ko{$ncbi} = $ko;
+            $ncbi2ko{$gene{$gene}->{gi}} = $gene{$gene}->{ko};
         }
     }
-say "Loaded NCBI->KO hashtable\n\t# of keys:", scalar keys %ncbi2ko;
+    say "Loaded NCBI->KO hashtable\n\t# of keys:", scalar keys %ncbi2ko;
 }
 
-__END__
-  -p  Type of file
-         T - protein
-         F - nucleotide [T/F]  Optional
-    default = T (CHOSEN)
-  -o  Parse options
-         T - True: Parse SeqId and create indexes.
-         F - False: Do not parse SeqId. Do not create indexes. (CHOSEN)
-  -n  Base name for BLAST files [String]  Optional
+sub mergekos
+{
+    my ($ko) = @_;
+    system "cat $dir/*/$ko > $kodb/$ko";
+}
+
+sub removeRedundant
+{
+    my %gihash;
+    my ($ko) = shift;
+
+    open my $in, "<", "$kodb/$ko";
+    open my $out, ">", "$nr/$ko";
+
+    my $contents = do { local $/; <$in> };
+    my @seq = split /\>/, $contents;
+    foreach my $sequence (@seq)
+    {
+        my ($ncbi) = $sequence =~ m/^gi\|(\d+)\|/;
+        unless (exists $gihash{$ncbi})
+        {
+            $gihash{$ncbi}++;
+            print $out ">$sequence";
+        }
+    }
+}
 
 
-#When i glob
-/export2/home/uesu/db/refseq/arch_prot/bacteria.99.protein.faa.gz
-
-
-#Combine Outputs
-#mkdir "/export2/home/uesu/db/refseq/kocombined" unless -d "/export2/home/uesu/db/refseq/kocombined";
-#foreach my $koID (keys %kohash)
-#{
-#system("cat $dir/*/$koID > /export2/home/uesu/db/refseq/kocombined/$koID");
-#}
-#find * -size 0 -exec rm -f {} +
-#
-#perl -nE 'say $1 if m/\t(\S+)$/' ~/KEGG/KEGG_SEPT_2014/genes/links/genes_ko.list | sort | uniq | wc -l
