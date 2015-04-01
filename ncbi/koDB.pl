@@ -1,9 +1,9 @@
 #!/usr/bin/env perl
 
-use strict;
-use v5.18;
-use lib "/export2/home/uesu/perl5/lib/perl5";
+use Modern::Perl '2015';
+use experimental 'signatures';
 use autodie;
+use Bio::SeqIO;
 use IO::File;
 use Parallel::ForkManager;
 
@@ -37,9 +37,10 @@ for (@kos)
 }
 $pm->wait_all_children;
 
-sub main
+
+#Functions
+sub main($pm)
 {
-    my $pm = shift;
     my @newfiles  = grep {!m/nonredundant/} <$refseqDB/*>;
     foreach (@newfiles)
     {
@@ -58,9 +59,8 @@ sub main
     $pm->wait_all_children;
 }
 
-sub readGZ
+sub readGZ($gzfna, $outputDIR)
 {
-    my ($gzfna, $outputDIR) = @_;
     my %out;        #hash table to store the lexical KO filehandles
     mkdir $outputDIR unless -d $outputDIR;
 
@@ -87,7 +87,6 @@ sub ko2gi
 say "Initialising..";
     open my $input, '<', "$keggDIR/genes/links/genes_ko.list";
     my %gene;
-
     while(<$input>)
     {
         chomp;
@@ -124,25 +123,20 @@ sub mergekos
     system "cat $dir/*/$ko > $kodb/$ko";
 }
 
-sub removeRedundant
+sub removeRedundant($ko)
 {
     my %gihash;
-    my ($ko) = shift;
 
-    open my $in, "<", "$kodb/$ko";
-    open my $out, ">", "$nr/$ko";
+    my $in = Bio::SeqIO->new(-file=>"$kodb/$ko", -format=>"fasta");
+    my $out = Bio::SeqIO->new(-file=>">$nr/$ko", -format=>"fasta");
 
-    my $contents = do { local $/; <$in> };
-    my @seq = split /\>/, $contents;
-    foreach my $sequence (@seq)
-    {
-        my ($ncbi) = $sequence =~ m/^gi\|(\d+)\|/;
+    while(my $seqObj = $in->next_seq){
+        my $refseqID = $seqObj->display_id;
+        my ($ncbi) = $refseqID =~ m/^gi\|(\d+)\|/;
         unless (exists $gihash{$ncbi})
         {
             $gihash{$ncbi}++;
-            print $out ">$sequence";
+            $out->write_seq($seqObj);
         }
     }
 }
-
-
