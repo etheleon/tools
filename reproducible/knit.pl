@@ -19,7 +19,7 @@ chdir $wd;
 
 my $cmds = <<"EOF";
 library(knitr);
-knit2html("$file.rmd")
+knit2html("$file.Rmd")
 EOF
 $R->run($cmds);
 $R->stop();
