@@ -4,7 +4,7 @@ use v5.20;
 use experimental        'signatures';
 use List::MoreUtils     'uniq';
 
-die "$0 fastq.gzDIR outputDIR\n" unless $#ARGV == 1;
+die "USAGE: $0 fastqDIR outputDIR\n" unless $#ARGV == 1;
 
 my $command = <DATA>;
 chomp $command;
