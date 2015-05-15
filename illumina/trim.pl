@@ -6,6 +6,24 @@ use List::MoreUtils     'uniq';
 
 die "USAGE: $0 fastqDIR outputDIR\n" unless $#ARGV == 1;
 
+=pod
+ 
+=head1 DESCRIPTION
+ 
+This script has 2 parameters. 
+
+b<fastqDIR> : Path to folder containing only the fasta.gz files. to be trimmed.
+b<outputDIR>: Path to the output folder to store the trimmed fasta.gz files. 
+
+It will print the commands neccessary to run Trimmomatic
+
+NOTE: Edit please edit the command to run Trimmomatic to suit your system ie. Path to jar and Trimmomatic's arguments.
+ 
+=cut
+
+
+
+
 my $command = <DATA>;
 chomp $command;
 
