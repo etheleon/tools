@@ -1,11 +1,10 @@
 #!/usr/bin/env perl
 
 use v5.20;
-use experimental 'signatures';
-use List::MoreUtils 'uniq';
+use experimental        'signatures';
+use List::MoreUtils     'uniq';
 
 die "$0 fastq.gzDIR outputDIR\n" unless $#ARGV == 1;
-$ARGV[0] =~ s/\/*$//g;
 
 my $command = <DATA>;
 chomp $command;
@@ -21,10 +20,10 @@ sub writeTrim ($sample, $command)
     my @output = map {
         (split(/\//, $input[$_]))[-1] =~ s|^(.*)\.fastq\.gz$|$ARGV[1]/$1|r
     } 0..1;
-    $command =~ s|read1|$input[0]|x;
-    $command =~ s|read2|$input[1]|x;
-    $command =~ s|output1|$output[0]|gx;
-    $command =~ s|output2|$output[1]|gx;
+    $command =~ s|read1|$input[0]|;
+    $command =~ s|read2|$input[1]|;
+    $command =~ s|output1|$output[0]|g;
+    $command =~ s|output2|$output[1]|g;
     say $command;
 }
 
