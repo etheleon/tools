@@ -18,8 +18,9 @@ sub writeTrim ($sample, $command)
 {
     my @input  = map {$sample=~s|readNum|$_|r} qw|R1 R2|;
     my @output = map {
-        (split(/\//, $input[$_]))[-1] =~ s|^(.*)\.fastq\.gz$|$ARGV[1]/$1|r
+        (split(/\//, $input[$_]))[-1] =~ s|^(?<fileName>.*)\.fastq\.gz$|$ARGV[1]/$+{fileName}|r
     } 0..1;
+    
     $command =~ s|read1|$input[0]|;
     $command =~ s|read2|$input[1]|;
     $command =~ s|output1|$output[0]|g;
