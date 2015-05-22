@@ -22,7 +22,7 @@ $ kegg.0200.cpd_nodedetails.pl ~/KEGG/KEGG_SEPT_2014/ligand/compound/compound ~/
 3. kegg.0300.import.r /path/to/keggFTP/root/folder misc
 
 ```
-kegg.0300.import.r /path/to/keggFTP/root/folder misc
+$ kegg.0300.import.r /path/to/keggFTP/root/folder misc
 ```
 
 ## Dependencies
