@@ -10,6 +10,13 @@ open my $input,     "<", $gb_file;
 
 $/ = '//'."\n";
 
+# headers (in sequence)
+# LOCUS: NZ_KB905487
+# location
+# NCBI gi
+# start
+# stop
+
 my @lines;
 while(<$input>)
 {
@@ -20,7 +27,7 @@ while(<$input>)
     foreach (@lines)
     {
         my %testing = findCDS($_);
-        if ($testing{'retval'})	#if i find a CDS
+        if ($testing{'retval'}) #if i find a CDS
         {
             my $gi = slurpblock($i);
             $testing{'result'} =~ m/(<|>)?(?<start>\d.*?)\.\.(<|>)?(?<end>\d+)/;
@@ -51,7 +58,7 @@ sub slurpblock
     while($block)
     {
        if($lines[$lineNum] =~ m/ {21}\/db_xref="GI:(?<ncbiGI>\d+)"/)
-       {
+M@       {
            $block = 0;
            return $+{ncbiGI};
        }elsif($lines[$lineNum] =~ m/^\S/)
