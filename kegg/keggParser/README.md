@@ -7,8 +7,8 @@ mkdir a output dir
 `mkdir misc`
 
 ## Parsing for CPD and KO details
-1. kegg.0100.ko_nodedetails.pl 
-2. kegg.0200.cpd_nodedetails.pl 
+1. [kegg.0100.ko_nodedetails.pl](./kegg.0100.ko_nodedetails.pl)
+2. [kegg.0200.cpd_nodedetails.pl](./kegg.0200.cpd_nodedetails.pl) 
 
 
 ```
@@ -19,10 +19,11 @@ $ kegg.0200.cpd_nodedetails.pl ~/KEGG/KEGG_SEPT_2014/ligand/compound/compound ~/
 ```
 
 ## Parsing each Pathway’s reactions
-3. kegg.0300.import.r /path/to/keggFTP/root/folder misc
+3. [kegg.0300.import.r](./kegg.0300.import.r)
 
 ```
-kegg.0300.import.r /path/to/keggFTP/root/folder misc
+$ kegg.0300.import.r </path/to/keggFTP/root/folder> <misc> <# of threads>
+# misc directory be where the ko_nodes cpd_nodes files be stored
 ```
 
 ## Dependencies
@@ -39,6 +40,7 @@ kegg.0300.import.r /path/to/keggFTP/root/folder misc
 ### Perl
 
 At least perl 5.10
+
 | Package | version |
 | ----    | ----    |
 | autodie |         |
